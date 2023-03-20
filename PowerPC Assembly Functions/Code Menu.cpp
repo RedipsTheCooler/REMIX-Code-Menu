@@ -73,6 +73,8 @@ int SPEED_INDEX = -1;
 int CSS_VERSION_SETTING_INDEX = -1;
 int THEME_SETTING_INDEX = -1;
 int DASH_ATTACK_ITEM_GRAB_INDEX = -1;
+int STAGELIST_INDEX = -1;
+int ASL_STAGE_INDEX = -1; //new T+ code!
 int TRIP_TOGGLE_INDEX = -1;
 int TRIP_RATE_MULTIPLIER_INDEX = -1;
 int TRIP_INTERVAL_INDEX = -1;
@@ -184,6 +186,11 @@ void buildCharacterIDLists()
 	if (characterListVersion >= characterListVersions::clv_PPEX_WALUIGI)
 	{
 		characterNameToIDMap.emplace("Waluigi", LCSI_WALUIGI);
+		characterNameToIDMap.emplace("Dark Samus", LCSI_DARK_SAMUS);
+		characterNameToIDMap.emplace("Red Alloy", LCSI_ALLOY_RED);
+		characterNameToIDMap.emplace("Blue Alloy", LCSI_ALLOY_BLUE);
+		characterNameToIDMap.emplace("Yellow Alloy", LCSI_ALLOY_YELLOW);
+		characterNameToIDMap.emplace("Green Alloy", LCSI_ALLOY_GREEN);
 	}
 	if (characterListVersion >= characterListVersions::clv_PPEX_DARK_SAMUS)
 	{
@@ -199,7 +206,7 @@ void buildRosterLists()
 {
 	std::map<std::string, std::string> rosterNameToFileIDMap =
 	{
-		{"Default", "CSSRoster.dat"}
+		{"Default", "css.bx"}
 	};
 
 	unzipMapToVectors(rosterNameToFileIDMap, ROSTER_LIST, ROSTER_FILENAME_LIST);
@@ -883,10 +890,10 @@ void CodeMenu()
 	ConstantsLines.push_back(new Floating("Knockback Decay Rate", -999, 999, 0.051, .001, KNOCKBACK_DECAY_MULTIPLIER_INDEX, "%.3f"));
 	constantOverrides.emplace_back(0x80B88534, KNOCKBACK_DECAY_MULTIPLIER_INDEX);
 	ConstantsLines.push_back(new Selection("Staling Toggle", { "Default", "ON", "OFF" }, 0, STALING_TOGGLE_INDEX));
-	//ConstantsLines.push_back(new Selection("Dash Attack Item Grab Toggle", { "OFF", "ON" }, 0, DASH_ATTACK_ITEM_GRAB_INDEX));
-	//ConstantsLines.push_back(new Selection("Tripping Toggle", { "OFF", "ON" }, 0, TRIP_TOGGLE_INDEX));
-	//ConstantsLines.push_back(new Floating("Tripping Rate", 0, 100, 1.0, 1.0, TRIP_RATE_MULTIPLIER_INDEX, "%.2f%"));
-	//ConstantsLines.push_back(new Selection("Tripping Cooldown Toggle", { "ON", "OFF" }, 0, TRIP_INTERVAL_INDEX));
+	ConstantsLines.push_back(new Selection("Dash Attack Item Grab Toggle", { "OFF", "ON" }, 0, DASH_ATTACK_ITEM_GRAB_INDEX));
+	ConstantsLines.push_back(new Selection("Tripping Toggle", { "OFF", "ON" }, 0, TRIP_TOGGLE_INDEX));
+	ConstantsLines.push_back(new Floating("Tripping Rate", 0, 100, 1.0, 1.0, TRIP_RATE_MULTIPLIER_INDEX, "%.2f%"));
+	ConstantsLines.push_back(new Selection("Tripping Cooldown Toggle", { "ON", "OFF" }, 0, TRIP_INTERVAL_INDEX));
 	Page ConstantsPage("Gameplay Modifiers", ConstantsLines);
 
 	//DBZ Mode settings
@@ -920,7 +927,7 @@ void CodeMenu()
 #endif
 
 #if BUILD_TYPE == PROJECT_PLUS
-	MainLines.push_back(new Comment("Desiac's Testing Code Menu", &MENU_TITLE_CHECK_LOCATION));
+	MainLines.push_back(new Comment("PMEX Remix Code Menu", &MENU_TITLE_CHECK_LOCATION));
 #else
 	MainLines.push_back(new Comment("Legacy TE 2.5 Code Menu", &MENU_TITLE_CHECK_LOCATION));
 #endif
@@ -941,7 +948,9 @@ void CodeMenu()
 #if TOURNAMENT_ADDITION_BUILD
 	MainLines.push_back(new Selection("Random 1-1", { "OFF", "ON" }, 0, RANDOM_1_TO_1_INDEX));
 #endif
-	MainLines.push_back(new Selection("Alternate Stages", { "Enabled", "Random", "OFF" }, 0, ALT_STAGE_BEHAVIOR_INDEX));
+	MainLines.push_back(new Selection("Button Stages", { "Enabled", "Random", "OFF" }, 0, ALT_STAGE_BEHAVIOR_INDEX));
+	MainLines.push_back(new Toggle("Alternate Stages", true, ASL_STAGE_INDEX));
+	MainLines.push_back(new Selection("Stagelist", { "Default", "Legal Only", "Spain", "Australia","By Series", "Alphabetical", "ProjectM", "Project+" }, 0, STAGELIST_INDEX));
 	MainLines.push_back(new Toggle("Autoskip Results Screen", false, AUTO_SKIP_TO_CSS_INDEX));
 #if DOLPHIN_BUILD
 	MainLines.push_back(new Toggle("Autosave Replays", true, AUTO_SAVE_REPLAY_INDEX));
@@ -1540,15 +1549,21 @@ void CreateMenu(Page MainPage)
 	// Theme Setting
 	AddValueToByteArray(THEME_SETTING_INDEX, Header);
 
-	//// Dash Attack Item Grab Setting
-	//AddValueToByteArray(DASH_ATTACK_ITEM_GRAB_INDEX, Header);
-	//
-	//// Tripping Toggle
-	//AddValueToByteArray(TRIP_TOGGLE_INDEX, Header);
-	//// Tripping Rate Multiplier
-	//AddValueToByteArray(TRIP_RATE_MULTIPLIER_INDEX, Header);
-	//// Tripping Cooldown Toggle
-	//AddValueToByteArray(TRIP_INTERVAL_INDEX, Header);
+	// Dash Attack Item Grab Setting
+	AddValueToByteArray(DASH_ATTACK_ITEM_GRAB_INDEX, Header);
+
+	//Stagelist Looter
+	AddValueToByteArray(STAGELIST_INDEX, Header);
+
+	//ASL Stage
+	AddValueToByteArray(ASL_STAGE_INDEX, Header);
+
+	// Tripping Toggle
+	AddValueToByteArray(TRIP_TOGGLE_INDEX, Header);
+	// Tripping Rate Multiplier
+	AddValueToByteArray(TRIP_RATE_MULTIPLIER_INDEX, Header);
+	// Tripping Cooldown Toggle
+	AddValueToByteArray(TRIP_INTERVAL_INDEX, Header);
 	
 	//draw settings buffer
 	vector<u32> DSB(0x200 / 4, 0);
@@ -1678,7 +1693,7 @@ void ControlCodeMenu()
 	int NotLoaded = GetNextLabel();
 #if BUILD_TYPE == PROJECT_PLUS
 	LoadHalfToReg(Reg1, MENU_TITLE_CHECK_LOCATION + 7 + Line::COMMENT_LINE_TEXT_START);
-	If(Reg1, NOT_EQUAL_I_L, 0x7320); //+
+	If(Reg1, NOT_EQUAL_I_L, 0x6D69); //mi
 	{
 		JumpToLabel(NotLoaded);
 	}EndIf();

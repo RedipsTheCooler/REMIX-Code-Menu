@@ -9,7 +9,7 @@ void cssRosterChange() // Adapted from CSS Roster Change via Code Menu [QuickLav
 		int reg2 = 5;
 
 		constexpr unsigned long CSSRosterPathAddress = 0x806a1f20; // Location of Roster File Path
-		constexpr unsigned long CSSRosterFolderPortionLength = 0x9; // Used to move past the "/BrawlEx/" portion of the Roster File Path
+		constexpr unsigned long CSSRosterFolderPortionLength = 0x15; // Used to move past the "/BrawlEx/" portion of the Roster File Path
 
 		ASMStart(0x80682928); // Hooks the second instruction of "__ct/[muSelCharTask]/mu_selchar.o".
 		SetRegister(reg1, CSS_VERSION_SETTING_INDEX); // Load the location of the CSS Roster Line into our first register.
