@@ -1,16 +1,16 @@
 #ifndef ADDITIONAL_CODE_H
 #define ADDITIONAL_CODE_H
 
+#include "stdafx.h"
 #include "Code Menu.h"
 #include "_lavaBytes.h"
+#include "_lavaOutputSplitter.h"
 #include <conio.h>
-#include <iomanip>
-#include <sstream>
 #include <filesystem>
 
 namespace lava
 {
-	const std::string version = "v1.0.4";
+	const std::string version = "v1.2.1";
 	extern int CMNUCopyOverride;
 	extern int ASMCopyOverride;
 	extern int GCTBuildOverride;
@@ -23,14 +23,6 @@ namespace lava
 		aI_CLOSE,
 		argumentCount
 	};
-
-	// General Utility
-	int stringToNum(const std::string& stringIn, bool allowNeg = 1, int defaultVal = INT_MAX);
-	std::string numToHexStringWithPadding(unsigned long long numIn, unsigned char paddingLength);
-	std::string numToDecStringWithPadding(unsigned long long numIn, unsigned char paddingLength);
-	std::string numToDecStringWithPadding(signed long long numIn, unsigned char paddingLength);
-	std::string doubleToStringWithPadding(double dblIn, unsigned char paddingLength, unsigned long precisionIn = 2);
-	std::string floatToStringWithPadding(float fltIn, unsigned char paddingLength, unsigned long precisionIn = 2);
 
 	// File System Management
 	bool copyFile(std::string sourceFile, std::string targetFile, bool overwriteExistingFile = 0);
@@ -47,14 +39,10 @@ namespace lava
 	void WriteByteVec(std::vector<unsigned char> Bytes, u32 Address, unsigned char addressReg, unsigned char manipReg, std::size_t numToWrite, bool appendNullTerminator = 0);
 	void WriteByteVec(std::string Bytes, u32 Address, unsigned char addressReg, unsigned char manipReg, std::size_t numToWrite, bool appendNullTerminator = 0);
 
-	// EX Character Functions
-	std::vector<std::pair<std::string, u16>> collectNameSlotIDPairs(std::string exCharInputFilePath, bool& fileOpened);
+	// ==================== Menu Config Parsing and Constants ====================
 
-	// EX Roster Functions
-	std::vector<std::pair<std::string, std::string>> collectedRosterNamePathPairs(std::string exRosterInputFilePath, bool& fileOpened);
-
-	// EX Theme Functions
-	std::vector<menuTheme> collectThemesFromXML(std::string exThemeInputFilePath, bool& fileOpened);
+	// Parses the specified Configuration XML and applies any changes it requests to the menu.
+	bool parseAndApplyConfigXML(std::string configFilePath, lava::outputSplitter& logOutput);
 }
 
 #endif

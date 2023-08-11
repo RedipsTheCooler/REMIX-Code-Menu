@@ -1,4 +1,7 @@
+#include "stdafx.h"
 #include "_CSSRosterChange.h"
+
+const std::string codeVersion = "v1.0.0";
 
 void cssRosterChange() // Adapted from CSS Roster Change via Code Menu [QuickLava]
 {
@@ -11,7 +14,7 @@ void cssRosterChange() // Adapted from CSS Roster Change via Code Menu [QuickLav
 		constexpr unsigned long CSSRosterPathAddress = 0x806a1f20; // Location of Roster File Path
 		constexpr unsigned long CSSRosterFolderPortionLength = 0x15; // Used to move past the "/BrawlEx/" portion of the Roster File Path
 
-		ASMStart(0x80682928); // Hooks the second instruction of "__ct/[muSelCharTask]/mu_selchar.o".
+		ASMStart(0x80682928, "[CM: _CSSRosterChange] CSS Roster Changer " + codeVersion + " [QuickLava]"); // Hooks the second instruction of "__ct/[muSelCharTask]/mu_selchar.o".
 		SetRegister(reg1, CSS_VERSION_SETTING_INDEX); // Load the location of the CSS Roster Line into our first register.
 		LWZ(reg2, reg1, Line::VALUE); // Then Look 0x08 past that address to get the selected index of the CSS Roster Line
 

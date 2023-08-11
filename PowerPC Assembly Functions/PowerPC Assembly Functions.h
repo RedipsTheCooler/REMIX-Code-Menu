@@ -3,11 +3,14 @@
 #include "stdafx.h"
 #include <fstream>
 #include <vector>
+#include <array>
 #include <algorithm>
 #include <numeric>
 #include <string>
 #include <iostream>
 #include <cassert>
+#include <sstream>
+#include "_lavaGeckoHexConvert.h"
 using namespace std;
 
 typedef unsigned int u32;
@@ -37,9 +40,11 @@ enum characterListVersions
 	clv_PPEX_RIDLEY,
 	clv_PPEX_WALUIGI,
 	clv_PPEX_DARK_SAMUS,
+	clv_PPEX_SCEPTILE,
 	__clv_Count
 };
-extern long characterListVersion;
+extern unsigned long characterListVersion;
+extern const std::array<std::string, characterListVersions::__clv_Count> characterListVersionNames;
 // P+EX Configuration Macros
 #define PROJECT_PLUS_EX_BUILD (true && (BUILD_TYPE == PROJECT_PLUS))
 // Controls whether or not externally defined character, rosters, and themes are loaded into their respective lists.
@@ -53,6 +58,11 @@ extern long characterListVersion;
 // As a result, attempting to run Netplay GCTs on console may brick your Wii. 
 #define BUILD_NETPLAY_FILES (false && DOLPHIN_BUILD)
 
+// ASM Output Formatting Settings
+#define ALLOW_BLANK_CODE_NAMES_IN_ASM true
+#define OUTPUT_ASM_INSTRUCTION_DICTIONARY false
+#define ALLOW_IMPLICIT_MULLI_OPTIMIZATIONS false // Allows the builder to implicitly replace MULLIs by powers of 2 with bitshift operations!
+
 //ROTC floating offsets
 #define FS_20_0 -0x7920
 
@@ -63,6 +73,10 @@ extern long characterListVersion;
 const vector<float> DEFAULT_CAMERA_MATRIX = { 1,0,0,0, 0,1,0,0, 0,0,1,-64 };
 
 extern string MAIN_FOLDER;
+bool setMAIN_FOLDER(std::string mainFolderIn);
+
+extern bool CUSTOM_NAME_SUPPLIED;
+extern std::string MENU_NAME;
 
 ///addresses start
 
@@ -223,6 +237,26 @@ const int MENU_SELECTED_TAG_OFFSET = 0x164;
 #define BUTTON_Y 0x800
 #define BUTTON_START 0x1000
 #define BUTTON_DPAD 0xF
+constexpr bool isPowerOf2(unsigned long numberIn)
+{
+	return (numberIn & (numberIn - 1)) == 0;
+}
+constexpr unsigned long bitIndexFromButtonHex(unsigned long buttonHex, bool doIndexFromRight = 0)
+{
+	// If what was passed in was a proper button hex value (power of 2)
+	if (isPowerOf2(buttonHex))
+	{
+		if (doIndexFromRight)
+		{
+			return int(log2(buttonHex));
+		}
+		else
+		{
+			return 31 - (int(log2(buttonHex)));
+		}
+	}
+	return ULONG_MAX;
+}
 ///button values end
 #define BUTTON_PORT_OFFSET 0x40
 #define WIIMOTE 0
@@ -234,7 +268,7 @@ const int MENU_SELECTED_TAG_OFFSET = 0x164;
 #define BRANCH_IF_FALSE 0b00100
 #define BRANCH_ALWAYS 0b10100
 #define MAX_IFS 15
-#define MAX_LABELS 20
+#define MAX_LABELS 50
 #define MAX_JUMPS 50
 #define LESS 0
 #define GREATER 1
@@ -269,8 +303,46 @@ const int MENU_SELECTED_TAG_OFFSET = 0x164;
 #define TERMINATE_REPLAY_VALUE 0x06000000
 ///constants end
 
+namespace ledger
+{
+	struct codeLedgerEntry
+	{
+		std::string codeName = "";
+		std::streampos codeStartPos = SIZE_MAX;
+		std::streampos codeEndPos = SIZE_MAX;
+		std::string codeBlurb = "";
+
+		codeLedgerEntry(std::string codeNameIn, std::streampos codeStartPosIn, std::string codeBlurbIn = "") :
+			codeName(codeNameIn), codeStartPos(codeStartPosIn), codeBlurb(codeBlurbIn) {};
+		std::size_t length();
+	};
+
+	bool openLedgerEntry(std::string codeName, std::string codeBlurb = "");
+	bool closeLedgerEntry();
+
+	bool writeCodeToASMStream(std::ostream& output, std::istream& codeStreamIn, std::size_t expectedLength, const std::string codeNameIn = "", const std::string codeBlurbIn = "", bool codeUnattested = 0);
+}
+
+// Branch Conditions, Used for JumpToLabel and BC Operations
+struct branchConditionAndConditionBit
+{
+	int BranchCondition = INT_MAX;
+	int ConditionBit = INT_MAX;
+
+	branchConditionAndConditionBit(int BranchConditionIn = INT_MAX, int ConditionBitIn = INT_MAX) :
+		BranchCondition(BranchConditionIn), ConditionBit(ConditionBitIn) {};
+};
+const static branchConditionAndConditionBit bCACB_EQUAL				=		{ BRANCH_IF_TRUE, EQ };
+const static branchConditionAndConditionBit bCACB_NOT_EQUAL			=		{ BRANCH_IF_FALSE, EQ };
+const static branchConditionAndConditionBit bCACB_GREATER			=		{ BRANCH_IF_TRUE, GT};
+const static branchConditionAndConditionBit bCACB_GREATER_OR_EQ		=		{ BRANCH_IF_FALSE, LT};
+const static branchConditionAndConditionBit bCACB_LESSER			=		{ BRANCH_IF_TRUE, LT };
+const static branchConditionAndConditionBit bCACB_LESSER_OR_EQ		=		{ BRANCH_IF_FALSE, GT };
+const static branchConditionAndConditionBit bCACB_UNSPECIFIED		=		{ INT_MAX, INT_MAX };
+
 ///variables start
-static fstream WPtr;
+extern fstream WPtr;
+extern std::vector<ledger::codeLedgerEntry> codeLedger;
 static char OpHexBuffer[10] = {};//used for writing 8 char assembly hex to file
 static u32 OpHex = 0;//for writing ops to file
 static int IfStartPos[MAX_IFS] = {};
@@ -284,6 +356,7 @@ static int LabelPosArray[MAX_LABELS] = {};
 static int LabelIndex = 0;
 static int JumpLabelNumArray[MAX_JUMPS] = {};
 static int JumpFromArray[MAX_JUMPS] = {};
+static branchConditionAndConditionBit JumpFromConditionArray[MAX_JUMPS] = {};
 static int JumpIndex = 0;
 static vector<int> FPPushRecords;
 static vector<int> CounterLoppRecords;
@@ -323,12 +396,14 @@ void LoadWordToReg(int DestReg, int Reg, int Address);
 void LoadHalfToReg(int DestReg, int Reg, int Address);
 void LoadByteToReg(int DestReg, int Reg, int Address);
 void ConvertIntToFloat(int SourceReg, int TempReg, int ResultReg);
-void ASMStart(int BranchAddress);
+void ASMStart(int BranchAddress, std::string name = "", std::string blurb = "");
 void ASMEnd(int Replacement);
 void ASMEnd();
+void CodeRaw(std::string name, std::string blurb, const std::vector<unsigned long>& rawHexIn);
 void Label(int LabelNum);
 int GetNextLabel();
-void JumpToLabel(int LabelNum);
+void JumpToLabel(int LabelNum, branchConditionAndConditionBit conditionIn = bCACB_UNSPECIFIED);
+void JumpToLabel(int LabelNum, int BranchCondition, int ConditionBit);
 void CompleteJumps();
 int CalcBranchOffset(int Location, int Target);
 void StrCpy(int Destination, int Source, int Temp);
@@ -434,50 +509,52 @@ void IfInSSE(int reg1, int reg2);
 void IfNotInSSE(int reg1, int reg2);
 
 void ABS(int DestReg, int SourceReg, int tempReg);
-void ADD(int DestReg, int SourceReg1, int SourceReg2);
+void ADD(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
 void ADDI(int DestReg, int SourceReg, int Immediate);
 void ADDIS(int DestReg, int SourceReg, int Immediate);
-void AND(int DestReg, int SourceReg1, int SourceReg2);
-void ANDC(int DestReg, int SourceReg1, int SourceReg2);
+void AND(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void ANDC(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
 void ANDI(int DestReg, int SourceReg, int Immediate);
 void ANDIS(int DestReg, int SourceReg, int Immediate);
 void B(int JumpDist);
 void BA(int Address);
+void BC(int JumpDist, branchConditionAndConditionBit conditionIn);
 void BC(int JumpDist, int BranchCondition, int ConditionBit);
 void BCTR();
 void BCTRL();
+void BL(int JumpDist);
 void BLA(int Address);
 void BLR();
 void CMP(int Reg1, int Reg2, int CondField);
 void CMPI(int Reg, int Immediate, int CondField);
 void CMPL(int Reg1, int Reg2, int CondField);
 void CMPLI(int Reg, int Immediate, int CondField);
-void CNTLZW(int DestReg, int SourceReg);
+void CNTLZW(int DestReg, int SourceReg, bool SetConditionReg = 0);
 //if sourceReg1 == r0, not used
 void DCBF(int SourceReg1, int SourceReg2);
 void DCBST(int SourceReg1, int SourceReg2);
-void DIVW(int DestReg, int DividendReg, int DivisorReg);
-void DIVWU(int DestReg, int DividendReg, int DivisorReg);
-void EQV(int DestReg, int SourceReg1, int SourceReg2);
-void EXTSB(int DestReg, int SourceReg);
-void FABS(int DestReg, int SourceReg);
-void FADD(int DestReg, int SourceReg1, int SourceReg2);
-void FADDS(int DestReg, int SourceReg1, int SourceReg2);
+void DIVW(int DestReg, int DividendReg, int DivisorReg, bool SetConditionReg = 0);
+void DIVWU(int DestReg, int DividendReg, int DivisorReg, bool SetConditionReg = 0);
+void EQV(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void EXTSB(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FABS(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FADD(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void FADDS(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
 void FCMPU(int FPReg1, int FPReg2, int CondField);
-void FMR(int DestReg, int SourceReg);
-void FCTIW(int DestReg, int SourceReg);
-void FCTIWZ(int DestReg, int SourceReg);
-void FDIV(int FPDestReg, int FPSourceReg1, int FPSourceReg2);
-void FDIVS(int FPDestReg, int FPSourceReg1, int FPSourceReg2);
-void FMUL(int DestReg, int SourceReg1, int SourceReg2);
-void FMULS(int DestReg, int SourceReg1, int SourceReg2);
-void FNEG(int DestReg, int SourceReg);
-void FRES(int DestReg, int SourceReg);
-void FRSP(int DestReg, int SourceReg);
-void FRSQRTE(int DestReg, int SourceReg);
-void FSQRT(int FPDestReg, int FPSourceReg);
-void FSUB(int FPDestReg, int FPSourceReg1, int FPSourceReg2);
-void FSUBS(int FPDestReg, int FPSourceReg1, int FPSourceReg2);
+void FCTIW(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FCTIWZ(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FDIV(int FPDestReg, int FPSourceReg1, int FPSourceReg2, bool SetConditionReg = 0);
+void FDIVS(int FPDestReg, int FPSourceReg1, int FPSourceReg2, bool SetConditionReg = 0);
+void FMR(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FMUL(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void FMULS(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void FNEG(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FRES(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FRSP(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FRSQRTE(int DestReg, int SourceReg, bool SetConditionReg = 0);
+void FSQRT(int FPDestReg, int FPSourceReg, bool SetConditionReg = 0);
+void FSUB(int FPDestReg, int FPSourceReg1, int FPSourceReg2, bool SetConditionReg = 0);
+void FSUBS(int FPDestReg, int FPSourceReg1, int FPSourceReg2, bool SetConditionReg = 0);
 //if SOurceReg1 == r0, it is not used
 void ICBI(int SourceReg1, int SourceReg2);
 void ISYNC();
@@ -513,17 +590,18 @@ void MTCTR(int TargetReg);
 void MTLR(int TargetReg);
 void MTXER(int TargetReg);
 void MULLI(int DestReg, int SourceReg, int Immediate);
-void MULLW(int DestReg, int SourceReg1, int SourceReg2);
-void NEG(int DestReg, int SourceReg);
+void MULLW(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void NEG(int DestReg, int SourceReg, bool SetConditionReg = 0);
 void NOP();
-void NOR(int DestReg, int SourceReg1, int SourceReg2);
-void OR(int DestReg, int SourceReg1, int SourceReg2);
-void ORC(int DestReg, int SourceReg1, int SourceReg2);
+void NOR(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void OR(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
+void ORC(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
 void ORI(int DestReg, int SourceReg, int Immediate);
 void ORIS(int DestReg, int SourceReg, int Immediate);
-void RLWINM(int DestReg, int SourceReg, int ShiftNum, int MaskStart, int MaskEnd);
-void RLWNM(int DestReg, int SourceReg, int ShiftReg, int MaskStart, int MaskEnd);
-void SRAWI(int DestReg, int SourceReg, int ShiftNum);
+void RLWIMI(int DestReg, int SourceReg, int ShiftNum, int MaskStart, int MaskEnd, bool SetConditionReg = 0);
+void RLWINM(int DestReg, int SourceReg, int ShiftNum, int MaskStart, int MaskEnd, bool SetConditionReg = 0);
+void RLWNM(int DestReg, int SourceReg, int ShiftReg, int MaskStart, int MaskEnd, bool SetConditionReg = 0);
+void SRAWI(int DestReg, int SourceReg, int ShiftNum, bool SetConditionReg = 0);
 void STB(int SourceReg, int AddressReg, int Immediate);
 void STB(int SourceReg, int AddressReg, int Immediate);
 void STBU(int SourceReg, int AddressReg, int Immediate);
@@ -542,8 +620,8 @@ void STWU(int SourceReg, int AddressReg, int Immediate);
 void STWUX(int SourceReg, int AddressReg1, int AddressReg2);
 void STWX(int SourceReg, int AddressReg1, int AddressReg2);
 //DestReg = SourceReg1 - SourceReg2
-void SUBF(int DestReg, int SourceReg1, int SourceReg2);
+void SUBF(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
 void SYNC();
-void XOR(int DestReg, int SourceReg1, int SourceReg2);
+void XOR(int DestReg, int SourceReg1, int SourceReg2, bool SetConditionReg = 0);
 void XORI(int DestReg, int SourceReg, int Immediate);
 void XORIS(int DestReg, int SourceReg, int Immediate);
