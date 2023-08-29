@@ -9,7 +9,7 @@
 #include "pugi/pugixml.hpp"
 
 //active codes
-extern int MENU_TITLE_CHECK_LOCATION;
+extern int MENU_TITLE_CHECK_LOCATION; // No longer used!
 extern int DI_DRAW_INDEX;
 extern int DEBUG_MODE_INDEX;
 extern int DISPLAY_HITBOXES_INDEX;
@@ -78,11 +78,15 @@ extern int SPEED_INDEX;
 extern int CSS_VERSION_SETTING_INDEX;
 extern int THEME_SETTING_INDEX;
 extern int DASH_ATTACK_ITEM_GRAB_INDEX;
-extern int STAGELIST_INDEX;
-extern int ASL_STAGE_INDEX;
 extern int TRIP_TOGGLE_INDEX;
 extern int TRIP_RATE_MULTIPLIER_INDEX;
 extern int TRIP_INTERVAL_INDEX;
+extern int BACKPLATE_COLOR_1_INDEX;
+extern int BACKPLATE_COLOR_2_INDEX;
+extern int BACKPLATE_COLOR_3_INDEX;
+extern int BACKPLATE_COLOR_4_INDEX;
+extern int BACKPLATE_COLOR_C_INDEX;
+extern int BACKPLATE_COLOR_T_INDEX;
 
 
 struct ConstantPair {
@@ -176,6 +180,7 @@ enum LAVA_CHARA_SLOT_IDS
 	LCSI_RIDLEY = 0x38,
 	LCSI_WALUIGI = 0x39,
 	LCSI_DARK_SAMUS = 0x40,
+	LCSI_SCEPTILE = 0x62,
 	LCSI_ALLOY_RED = 0x6A,
 	LCSI_ALLOY_BLUE = 0x6B,
 	LCSI_ALLOY_YELLOW = 0x6C,
@@ -190,9 +195,10 @@ bool zipVectorsToMap(const std::vector<T1>& vec1, const std::vector<T2>& vec2, s
 	if (vec1.size() == vec2.size())
 	{
 		result = 1;
+		destinationMap.clear();
 		for (std::size_t i = 0; i < vec1.size(); i++)
 		{
-			auto res = result.emplace(vec1[i], vec2[i]);
+			auto res = destinationMap.emplace(vec1[i], vec2[i]);
 			if (res.second == 1)
 			{
 				res.first->second = vec2[i];
@@ -205,18 +211,14 @@ bool zipVectorsToMap(const std::vector<T1>& vec1, const std::vector<T2>& vec2, s
 template <typename T1, typename T2>
 void unzipMapToVectors(const std::map<T1, T2>& sourceMap, std::vector<T1>& vec1, std::vector<T2>& vec2)
 {
-	if (vec1.size() < sourceMap.size())
-	{
-		vec1.reserve(sourceMap.size());
-	}
-	if (vec2.size() < sourceMap.size())
-	{
-		vec2.reserve(sourceMap.size());
-	}
+	vec1.resize(sourceMap.size());
+	vec2.resize(sourceMap.size());
+	std::size_t index = 0;
 	for (auto itr = sourceMap.begin(); itr != sourceMap.end(); itr++)
 	{
-		vec1.push_back(itr->first);
-		vec2.push_back(itr->second);
+		vec1[index] = itr->first;
+		vec2[index] = itr->second;
+		index++;
 	}
 }
 
@@ -225,7 +227,9 @@ void unzipMapToVectors(const std::map<T1, T2>& sourceMap, std::vector<T1>& vec1,
 // additional EX Character declarations will be collected from the file described by exCharInputFilename (see "Code Menu.cpp").
 extern vector<string> CHARACTER_LIST;
 extern vector<u16> CHARACTER_ID_LIST;
+constexpr unsigned char CHARACTER_ID_MAX_VALUE = 0x7F;
 void buildCharacterIDLists();
+bool applyCharacterListVersion(unsigned long targetVersion);
 
 // Declares existence of the two main roster lists, populated by the function below.
 // If COLLECT_EXTERNAL_ROSTERS (in "PowerPC Assembly Functions.h") is set to true,
@@ -251,11 +255,7 @@ namespace themeConstants
 	};
 
 	constexpr unsigned long prefixLength = 0x03;
-	extern const std::string nameTag;
-	extern const std::string themeTag;
-	extern const std::string themeFileTag;
-	extern const std::string prefixTag;
-
+	
 	extern std::array<std::string, tpi__PATH_COUNT> filenames;
 }
 struct menuTheme
@@ -270,6 +270,35 @@ std::string getThemeFileBaseName(themeConstants::themePathIndices fileIndex);
 std::string getThemeFileDefaultPrefix(themeConstants::themePathIndices fileIndex);
 extern vector<string> THEME_LIST;
 extern std::vector<menuTheme> THEME_SPEC_LIST;
+// Notes, for each theme-able file, whether or not any specified themes actually use a non-standard prefix for it.
+// Used to determine whether or not we actually need to output the hook for a given theme-able file.
+extern std::array<bool, themeConstants::tpi__PATH_COUNT> THEME_FILE_GOT_UNIQUE_PREFIX;
+
+namespace backplateColorConstants
+{
+	enum playerSlotColorLevel
+	{
+		pSCL_NONE = 0,
+		pSCL_SHIELDS_AND_PLUMES_ONLY,
+		pSCL_SHIELDS_PLUMES_AND_IN_GAME_HUD,
+		pSCL_MENUS_AND_IN_GAME_WITHOUT_CSS_INPUT,
+		pSCL_MENUS_AND_IN_GAME_WITH_CSS_INPUT,
+		pSCL__COUNT
+	};
+	extern const std::array<std::string, playerSlotColorLevel::pSCL__COUNT> modeNames;
+}
+// Denotes the total number colors available to the HUD Color Switcher.
+// Used to ensure that if we add a mechanism for adding additional colors, they'll be accounted for, both
+// in the actual generated ASM in _BackplateColors, and by the actual code menu lines themselves.
+extern const unsigned long BACKPLATE_COLOR_TOTAL_COLOR_COUNT;
+
+// Incoming Configuration XML Variables (See "Code Menu.cpp" for defaults, and "_AdditionalCode.cpp" for relevant Config Parsing code!)
+extern std::vector<std::string> CONFIG_INCOMING_COMMENTS;
+extern bool CONFIG_DELETE_CONTROLS_COMMENTS;
+extern unsigned char CONFIG_BACKPLATE_COLOR_MODE;
+extern bool CONFIG_DASH_ATTACK_ITEM_GRAB_ENABLED;
+
+
 
 // The stream for the MenuFile.
 // Path is no longer specified in this line, is instead controlled by the below paths and applied in initMenuFileStream().
@@ -277,12 +306,11 @@ static fstream MenuFile;
 void initMenuFileStream();
 
 
-
 // Logging and Input Constants
 extern const std::string outputFolder;
-extern const std::string exCharInputFileName;
-extern const std::string rosterInputFileName;
-extern const std::string themeInputFileName;
+extern const std::string menuConfigXMLFileName;
+extern const std::string netMenuConfigXMLFileName;
+extern const std::string symbolMapInputFileName;
 extern const std::string changelogFileName;
 extern const std::string optionsFilename;
 // Code Menu Output Constants
@@ -297,6 +325,7 @@ extern const std::string asmBuildLocationDirectory;
 extern const std::string cmnuBuildLocationDirectory;
 extern const std::string asmBuildLocationFilePath;
 extern const std::string cmnuBuildLocationFilePath;
+std::string getCMNUAbsolutePath();
 // AutoGCTRM Constants
 extern const std::string buildFolder;
 extern const std::string GCTRMExePath;
@@ -319,9 +348,7 @@ namespace xmlTagConstants
 	extern const std::string valueMaxTag;
 	extern const std::string valueDefaultTag;
 	extern const std::string editableTag;
-	extern const std::string buildBaseFolderTag;
 	extern const std::string cmnuPathTag;
-	extern const std::string characterListVerTag;
 	extern const std::string pageTag;
 	extern const std::string selectionTag;
 	extern const std::string selectionDefaultTag;
@@ -337,9 +364,6 @@ void recursivelyFindPages(Page& currBasePageIn, std::vector<Page*>& collectedPoi
 void findPagesInOptionsTree(const pugi::xml_document& optionsTree, std::map<std::string, pugi::xml_node>& collectedNodes);
 void findLinesInPageNode(const pugi::xml_node& pageNode, std::map<std::string, pugi::xml_node>& collectedNodes);
 bool buildMenuOptionsTreeFromMenu(Page& mainPageIn, std::string xmlPathOut);
-
-void applyCharacterListSettingFromMenuOptionsTree(const pugi::xml_document& xmlDocumentIn);
-bool applyCharacterListSettingFromMenuOptionsTree(std::string xmlPathIn);
 
 void applyDefaultValuesFromMenuOptionsTree(Page& mainPageIn, const pugi::xml_document& xmlDocumentIn);
 bool applyDefaultValuesFromMenuOptionsTree(Page& mainPageIn, std::string xmlPathIn);
@@ -462,19 +486,45 @@ static const int THEME_LOC = CSS_VER_LOC + 4; //4
 
 static const int DASH_ATTACK_ITEM_GRAB_LOC = THEME_LOC + 4; //4
 
-static const int STAGELIST_LOC = DASH_ATTACK_ITEM_GRAB_LOC + 4; //4
-
-static const int ASL_STAGE_LOC = STAGELIST_LOC + 4; //4
-
-static const int TRIP_TOGGLE_LOC = ASL_STAGE_LOC + 4; //4
+static const int TRIP_TOGGLE_LOC = DASH_ATTACK_ITEM_GRAB_LOC + 4; //4
 static const int TRIP_RATE_MULTIPLIER_LOC = TRIP_TOGGLE_LOC + 4; //4
 static const int TRIP_INTERVAL_LOC = TRIP_RATE_MULTIPLIER_LOC + 4; //4
 
-static const int DRAW_SETTINGS_BUFFER_LOC = TRIP_INTERVAL_LOC + 4; //0x200
+static const int BACKPLATE_COLOR_1_LOC = TRIP_INTERVAL_LOC + 4; //4
+static const int BACKPLATE_COLOR_2_LOC = BACKPLATE_COLOR_1_LOC + 4; //4
+static const int BACKPLATE_COLOR_3_LOC = BACKPLATE_COLOR_2_LOC + 4; //4
+static const int BACKPLATE_COLOR_4_LOC = BACKPLATE_COLOR_3_LOC + 4; //4
+static const int BACKPLATE_COLOR_C_LOC = BACKPLATE_COLOR_4_LOC + 4; //4
+static const int BACKPLATE_COLOR_T_LOC = BACKPLATE_COLOR_C_LOC + 4; //4
+static const int BACKPLATE_COLOR_TEAM_BATTLE_STORE_LOC = BACKPLATE_COLOR_T_LOC + 4; //4
 
+static const int DRAW_SETTINGS_BUFFER_LOC = BACKPLATE_COLOR_TEAM_BATTLE_STORE_LOC + 4; //0x200
 
+// HOOK Vtable
+// Provides a table to store HOOKS in, allowing them to be called repeatedly from different locations!
+// Registering a HOOK:
+//		1) Add a new entry to the struct, then open a HOOK using ASMStart(), passing your entry as the "BranchAddress" argument.
+//		2) Write the meat of your hook, **ENSURING THAT YOU END YOUR HOOK WITH A BLR INSTRUCTION**. This is how you'll get back afterwards!
+//		3) Close the hook using ASMEnd().
+// Calling a Registered HOOK from Your Own:
+//		0) If necessary, backup the Link Register's current value (along with any other registers you need to keep) to the stack.
+//		1) Call SetRegister(), passing your entry as the "value" argument.
+//		2) Use MCTR to load the address into the Count Register.
+//		3) Use BCTRL to branch and link to that address, from which you'll be branched into the body of the targeted HOOK. The BLR instruction
+//			at the end of that HOOK's body should then send you back to where you originally BCTRL'd from, allowing execution to continue from there!
+//		4) Pull any registers you backed up back off of the stack.
+static struct
+{
+	constexpr unsigned int table_start() { return DRAW_SETTINGS_BUFFER_LOC + 0x200; };
 
-static const int START_OF_CODE_MENU = DRAW_SETTINGS_BUFFER_LOC + 0x200;
+	//const int THEME_CHANGE_APPLY_PREFIXES = table_start();
+
+	constexpr unsigned int table_size() { return (sizeof(*this) > 1) ? (sizeof(*this)) : 0; };
+	constexpr unsigned int table_end() { return table_start() + table_size(); };
+} HOOK_VTABLE;
+
+static const int START_OF_CODE_MENU = HOOK_VTABLE.table_end();
+
 
 static int CurrentOffset = START_OF_CODE_MENU;
 
@@ -771,8 +821,8 @@ public:
 class Integer : public Line
 {
 public:
-	Integer(string Text, int Min, int Max, int Default, int Speed, int &Index)
-	: Line(Text + ":  %d", NUMBER_LINE_TEXT_START, INTEGER_LINE, 0, NORMAL_LINE_COLOR_OFFSET, &Index)
+	Integer(string Text, int Min, int Max, int Default, int Speed, int &Index, std::string format = "%d")
+	: Line(Text + ":  " + format, NUMBER_LINE_TEXT_START, INTEGER_LINE, 0, NORMAL_LINE_COLOR_OFFSET, &Index)
 	{
 		this->Min = Min;
 		this->Max = Max;

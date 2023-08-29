@@ -73,11 +73,15 @@ int SPEED_INDEX = -1;
 int CSS_VERSION_SETTING_INDEX = -1;
 int THEME_SETTING_INDEX = -1;
 int DASH_ATTACK_ITEM_GRAB_INDEX = -1;
-int STAGELIST_INDEX = -1;
-int ASL_STAGE_INDEX = -1; //new T+ code!
 int TRIP_TOGGLE_INDEX = -1;
 int TRIP_RATE_MULTIPLIER_INDEX = -1;
 int TRIP_INTERVAL_INDEX = -1;
+int BACKPLATE_COLOR_1_INDEX = -1;
+int BACKPLATE_COLOR_2_INDEX = -1;
+int BACKPLATE_COLOR_3_INDEX = -1;
+int BACKPLATE_COLOR_4_INDEX = -1;
+int BACKPLATE_COLOR_C_INDEX = -1;
+int BACKPLATE_COLOR_T_INDEX = -1;
 int EXTERNAL_INDEX = -1;	//Used for GCTRM codes that use other indexs for context
 
 //constant overrides
@@ -196,9 +200,30 @@ void buildCharacterIDLists()
 	{
 		characterNameToIDMap.emplace("Dark Samus", LCSI_DARK_SAMUS);
 	}
+	if (characterListVersion >= characterListVersions::clv_PPEX_SCEPTILE)
+	{
+		characterNameToIDMap.emplace("Sceptile", LCSI_SCEPTILE);
+	}
 
 	unzipMapToVectors(characterNameToIDMap, CHARACTER_LIST, CHARACTER_ID_LIST);
 }
+bool applyCharacterListVersion(unsigned long targetVersion)
+{
+	bool result = 0;
+
+	// If the targeted version is valid...
+	if (targetVersion < characterListVersions::__clv_Count)
+	{
+		// ... replace the recorded list version...
+		characterListVersion = targetVersion;
+		// ... and rebuild the character lists.
+		buildCharacterIDLists();
+		result = 1;
+	}
+
+	return result;
+}
+
 
 vector<string> ROSTER_LIST{};
 vector<string> ROSTER_FILENAME_LIST{};
@@ -214,11 +239,6 @@ void buildRosterLists()
 
 namespace themeConstants
 {
-	const std::string nameTag = "name";
-	const std::string themeTag = "menuTheme";
-	const std::string themeFileTag = "themeFile";
-	const std::string prefixTag = "replacementPrefix";
-
 	std::array<std::string, tpi__PATH_COUNT> filenames{};
 }
 void initializeThemeConstants()
@@ -259,15 +279,35 @@ std::string getThemeFileDefaultPrefix(themeConstants::themePathIndices fileIndex
 }
 vector<string> THEME_LIST;
 std::vector<menuTheme> THEME_SPEC_LIST{};
+std::array<bool, themeConstants::tpi__PATH_COUNT> THEME_FILE_GOT_UNIQUE_PREFIX{};
 
+namespace backplateColorConstants
+{
+	const std::array<std::string, playerSlotColorLevel::pSCL__COUNT> modeNames =
+	{
+		"Disabled",
+		"Shields & Death Plumes",
+		"Shields, Death Plumes, & In-Game HUD",
+		"All In-Game Elements, CSS, & Results Screen",
+		"All Elements & CSS Color Change Input",
+	};
+}
+const unsigned long BACKPLATE_COLOR_TOTAL_COLOR_COUNT = 10;
 
+// Incoming Configuration XML Variables
+std::vector<std::string> CONFIG_INCOMING_COMMENTS{};
+bool CONFIG_DELETE_CONTROLS_COMMENTS = false;
+unsigned char CONFIG_BACKPLATE_COLOR_MODE = backplateColorConstants::pSCL_NONE;
+bool CONFIG_DASH_ATTACK_ITEM_GRAB_ENABLED = 1;
 
-
-
+#if PROJECT_PLUS_EX_BUILD
+const std::string menuConfigXMLFileName = "EX_Config.xml";
+#else
+const std::string menuConfigXMLFileName = "Config.xml";
+#endif
+const std::string netMenuConfigXMLFileName = "Net-" + menuConfigXMLFileName;
 const std::string outputFolder = "./Code_Menu_Output/";
-const std::string exCharInputFileName = "EX_Characters.txt";
-const std::string rosterInputFileName = "EX_Rosters.txt";
-const std::string themeInputFileName = "EX_Themes.xml";
+const std::string symbolMapInputFileName = "symbols.map";
 const std::string buildFolder = ".././";
 const std::string GCTRMExePath = buildFolder + "GCTRealMate.exe";
 const std::string GCTRMCommandBase = "\"" + GCTRMExePath + "\" -g -l -q ";
@@ -329,6 +369,10 @@ const std::string cmnuOutputFilePath = outputFolder + cmnuFileName;
 const std::string cmnuOptionsOutputFilePath = outputFolder + optionsFilename;
 const std::string asmBuildLocationFilePath = buildFolder + asmBuildLocationDirectory + asmFileName;
 const std::string cmnuBuildLocationFilePath = buildFolder + cmnuBuildLocationDirectory + cmnuFileName;
+std::string getCMNUAbsolutePath()
+{
+	return MAIN_FOLDER + "/" + cmnuBuildLocationDirectory + cmnuFileName;
+}
 
 void initMenuFileStream()
 {
@@ -346,9 +390,7 @@ namespace xmlTagConstants
 	const std::string valueMaxTag = "maxValue";
 	const std::string valueDefaultTag = "defaultValue";
 	const std::string editableTag = "editable";
-	const std::string buildBaseFolderTag = "buildBaseFolder";
 	const std::string cmnuPathTag = "cmnuPath";
-	const std::string characterListVerTag = "characterListVersion";
 	const std::string pageTag = "codeMenuPage";
 	const std::string selectionTag = "codeMenuSelection";
 	const std::string selectionDefaultTag = "defaultOption";
@@ -428,22 +470,8 @@ bool buildMenuOptionsTreeFromMenu(Page& mainPageIn, std::string xmlPathOut)
 	commentNode.set_value("Important Note: Only change values noted as editable! Changing anything else will not work!");
 
 	pugi::xml_node menuBaseNode = MenuOptionsTree.append_child(xmlTagConstants::codeMenuTag.c_str());
-	pugi::xml_attribute menuNameAttr = menuBaseNode.append_attribute(xmlTagConstants::nameTag.c_str());
-	menuNameAttr.set_value(cmnuFileName.c_str());
-
-	pugi::xml_node buildBaseFolderNode = menuBaseNode.append_child(xmlTagConstants::buildBaseFolderTag.c_str());
-	buildBaseFolderNode.append_attribute(xmlTagConstants::valueTag.c_str()).set_value(MAIN_FOLDER.c_str());
-	buildBaseFolderNode.append_attribute(xmlTagConstants::editableTag.c_str()).set_value("true");
-
-	commentNode = menuBaseNode.append_child(pugi::node_comment);
-	commentNode.set_value("0: vBrawl, 1: vBrawl & Playable Sopo/GBowser/WarioMan, 2: Project M, 3: Project+, 4: P+EX 1.0, 5: P+EX 1.2");
-	pugi::xml_node characterListVersionNode = menuBaseNode.append_child(xmlTagConstants::characterListVerTag.c_str());
-	characterListVersionNode.append_attribute(xmlTagConstants::valueTag.c_str()).set_value(std::to_string(characterListVersion).c_str());
-	characterListVersionNode.append_attribute(xmlTagConstants::editableTag.c_str()).set_value("true");
-
-	pugi::xml_node cmnuPathNode = menuBaseNode.append_child(xmlTagConstants::cmnuPathTag.c_str());
-	cmnuPathNode.append_attribute(xmlTagConstants::valueTag.c_str()).set_value((cmnuBuildLocationDirectory + cmnuFileName).c_str());
-	//cmnuPathNode.append_attribute(xmlTagConstants::editableTag.c_str()).set_value("true");
+	pugi::xml_attribute menuPathAttr = menuBaseNode.append_attribute(xmlTagConstants::cmnuPathTag.c_str());
+	menuPathAttr.set_value(getCMNUAbsolutePath().c_str());
 
 	std::vector<Page*> Pages{ &mainPageIn };
 	recursivelyFindPages(mainPageIn, Pages);
@@ -520,74 +548,8 @@ bool buildMenuOptionsTreeFromMenu(Page& mainPageIn, std::string xmlPathOut)
 	return result;
 }
 
-void applyCharacterListSettingFromMenuOptionsTree(const pugi::xml_document& xmlDocumentIn)
-{
-	bool foundValue = 0;
-	for (pugi::xml_node_iterator menuItr = xmlDocumentIn.begin();
-		!foundValue && menuItr != xmlDocumentIn.end(); menuItr++)
-	{
-		if (menuItr->name() == xmlTagConstants::codeMenuTag)
-		{
-			for (pugi::xml_node_iterator childItr = menuItr->begin();
-				!foundValue && childItr != menuItr->end(); childItr++)
-			{
-				if (childItr->name() == xmlTagConstants::characterListVerTag)
-				{
-					for (pugi::xml_attribute_iterator attrItr = childItr->attributes_begin();
-						!foundValue && attrItr != childItr->attributes_end(); attrItr++)
-					{
-						if (attrItr->name() == xmlTagConstants::valueTag)
-						{
-							foundValue = 1;
-							int foundValue = std::clamp(attrItr->as_int(characterListVersion),
-								(int)characterListVersions::clv_vBRAWL, (int)characterListVersions::clv_PPEX_WALUIGI);
-							characterListVersion = foundValue;
-						}
-					}
-				}
-			}
-		}
-	}
-}
-bool applyCharacterListSettingFromMenuOptionsTree(std::string xmlPathIn)
-{
-	bool result = 0;
-
-	pugi::xml_document tempDoc;
-	if (loadMenuOptionsTree(xmlPathIn, tempDoc))
-	{
-		result = 1;
-		applyCharacterListSettingFromMenuOptionsTree(tempDoc);
-	}
-
-	return result;
-}
-
 void applyDefaultValuesFromMenuOptionsTree(Page& mainPageIn, const pugi::xml_document& xmlDocumentIn)
 {
-	for (pugi::xml_node_iterator menuItr = xmlDocumentIn.begin(); menuItr != xmlDocumentIn.end(); menuItr++)
-	{
-		if (menuItr->name() == xmlTagConstants::codeMenuTag)
-		{
-			for (pugi::xml_node_iterator childItr = menuItr->begin(); childItr != menuItr->end(); childItr++)
-			{
-				if (childItr->name() == xmlTagConstants::buildBaseFolderTag)
-				{
-					bool foundValue = 0;
-					for (pugi::xml_attribute_iterator attrItr = childItr->attributes_begin();
-						!foundValue && attrItr != childItr->attributes_end(); attrItr++)
-					{
-						if (attrItr->name() == xmlTagConstants::valueTag)
-						{
-							foundValue = 1;
-							MAIN_FOLDER = attrItr->as_string(MAIN_FOLDER);
-						}
-					}
-				}
-			}
-		}
-	}
-
 	std::vector<Page*> Pages{ &mainPageIn };
 	recursivelyFindPages(mainPageIn, Pages);
 
@@ -890,10 +852,13 @@ void CodeMenu()
 	ConstantsLines.push_back(new Floating("Knockback Decay Rate", -999, 999, 0.051, .001, KNOCKBACK_DECAY_MULTIPLIER_INDEX, "%.3f"));
 	constantOverrides.emplace_back(0x80B88534, KNOCKBACK_DECAY_MULTIPLIER_INDEX);
 	ConstantsLines.push_back(new Selection("Staling Toggle", { "Default", "ON", "OFF" }, 0, STALING_TOGGLE_INDEX));
-	ConstantsLines.push_back(new Selection("Dash Attack Item Grab Toggle", { "OFF", "ON" }, 0, DASH_ATTACK_ITEM_GRAB_INDEX));
-	ConstantsLines.push_back(new Selection("Tripping Toggle", { "OFF", "ON" }, 0, TRIP_TOGGLE_INDEX));
-	ConstantsLines.push_back(new Floating("Tripping Rate", 0, 100, 1.0, 1.0, TRIP_RATE_MULTIPLIER_INDEX, "%.2f%"));
-	ConstantsLines.push_back(new Selection("Tripping Cooldown Toggle", { "ON", "OFF" }, 0, TRIP_INTERVAL_INDEX));
+	if (CONFIG_DASH_ATTACK_ITEM_GRAB_ENABLED)
+	{
+		ConstantsLines.push_back(new Selection("Dash Attack Item Grab Toggle", { "OFF", "ON" }, 0, DASH_ATTACK_ITEM_GRAB_INDEX));
+	}
+	//ConstantsLines.push_back(new Selection("Tripping Toggle", { "OFF", "ON" }, 0, TRIP_TOGGLE_INDEX));
+	//ConstantsLines.push_back(new Floating("Tripping Rate", 0, 100, 1.0, 1.0, TRIP_RATE_MULTIPLIER_INDEX, "%.2f%"));
+	//ConstantsLines.push_back(new Selection("Tripping Cooldown Toggle", { "ON", "OFF" }, 0, TRIP_INTERVAL_INDEX));
 	Page ConstantsPage("Gameplay Modifiers", ConstantsLines);
 
 	//DBZ Mode settings
@@ -917,25 +882,28 @@ void CodeMenu()
 	SpecialModeLines.push_back(new Toggle("Scale Mode", false, SCALE_INDEX));
 	SpecialModeLines.push_back(new Floating("Scale Modifier", 0.5, 3, 1, 0.05, EXTERNAL_INDEX, "%.2fX"));
 	SpecialModeLines.push_back(new Selection("Big Head Mode", { "Off", "On", "Larger", "Largest", "Largerest" }, 0, BIG_HEAD_INDEX));
-
 	Page SpecialModePage("Special Modes", SpecialModeLines);
+
+
+	
+
 	//main page
 	vector<Line*> MainLines;
-#if DOLPHIN_BUILD
-	MainLines.push_back(new Comment("Dolphin Code Menu"));
-	MainLines.push_back(new Comment(""));
-#endif
-
-#if BUILD_TYPE == PROJECT_PLUS
-	MainLines.push_back(new Comment("PMEX Remix Code Menu", &MENU_TITLE_CHECK_LOCATION));
-#else
-	MainLines.push_back(new Comment("Legacy TE 2.5 Code Menu", &MENU_TITLE_CHECK_LOCATION));
-#endif
-	MainLines.push_back(new Comment("Green = Comments | Blue = Changed"));
-	MainLines.push_back(new Comment("A = Enter Submenu | B = Back/Exit"));
-	MainLines.push_back(new Comment("X = Reset Selection | Y = Reset Page"));
-	MainLines.push_back(new Comment("Hold Z = Scroll Faster"));
-	MainLines.push_back(new Comment(""));
+	// Writes the Menu's Title, appending the netplay suffix only if the config file didn't specify its own title.
+	MainLines.push_back(new Comment(MENU_NAME + ((!CUSTOM_NAME_SUPPLIED && BUILD_NETPLAY_FILES) ? " (Netplay)" : "")));
+	if (!CONFIG_DELETE_CONTROLS_COMMENTS)
+	{
+		MainLines.push_back(new Comment("Green = Comments | Blue = Changed"));
+		MainLines.push_back(new Comment("A = Enter Submenu | B = Back/Exit"));
+		MainLines.push_back(new Comment("X = Reset Selection | Y = Reset Page"));
+		MainLines.push_back(new Comment("Hold Z = Scroll Faster"));
+		MainLines.push_back(new Comment(""));
+	}
+	for (std::size_t i = 0; i < CONFIG_INCOMING_COMMENTS.size(); i++)
+	{
+		MainLines.push_back(new Comment(CONFIG_INCOMING_COMMENTS[i]));
+	}
+	
 
 #if EON_DEBUG_BUILD
 	MainLines.push_back(&TestPage.CalledFromLine);
@@ -948,9 +916,7 @@ void CodeMenu()
 #if TOURNAMENT_ADDITION_BUILD
 	MainLines.push_back(new Selection("Random 1-1", { "OFF", "ON" }, 0, RANDOM_1_TO_1_INDEX));
 #endif
-	MainLines.push_back(new Selection("Button Stages", { "Enabled", "Random", "OFF" }, 0, ALT_STAGE_BEHAVIOR_INDEX));
-	MainLines.push_back(new Toggle("Alternate Stages", true, ASL_STAGE_INDEX));
-	MainLines.push_back(new Selection("Stagelist", { "Default", "Legal Only", "Spain", "Australia","By Series", "Alphabetical", "ProjectM", "Project+" }, 0, STAGELIST_INDEX));
+	MainLines.push_back(new Selection("Alternate Stages", { "Enabled", "Random", "OFF" }, 0, ALT_STAGE_BEHAVIOR_INDEX));
 	MainLines.push_back(new Toggle("Autoskip Results Screen", false, AUTO_SKIP_TO_CSS_INDEX));
 #if DOLPHIN_BUILD
 	MainLines.push_back(new Toggle("Autosave Replays", true, AUTO_SAVE_REPLAY_INDEX));
@@ -964,6 +930,23 @@ void CodeMenu()
 	MainLines.push_back(&P3.CalledFromLine);
 	MainLines.push_back(&P4.CalledFromLine);
 	MainLines.push_back(&SpecialModePage.CalledFromLine);
+
+	
+	// HUD Color Settings
+	vector<Line*> HUDColorLines;
+	HUDColorLines.push_back(new Comment("Replacement Hud Colors:"));
+	HUDColorLines.push_back(new Integer("Red",		0, BACKPLATE_COLOR_TOTAL_COLOR_COUNT - 1, 1, 1, BACKPLATE_COLOR_1_INDEX, "Color %d"));
+	HUDColorLines.push_back(new Integer("Blue",		0, BACKPLATE_COLOR_TOTAL_COLOR_COUNT - 1, 2, 1, BACKPLATE_COLOR_2_INDEX, "Color %d"));
+	HUDColorLines.push_back(new Integer("Yellow",	0, BACKPLATE_COLOR_TOTAL_COLOR_COUNT - 1, 3, 1, BACKPLATE_COLOR_3_INDEX, "Color %d"));
+	HUDColorLines.push_back(new Integer("Green",	0, BACKPLATE_COLOR_TOTAL_COLOR_COUNT - 1, 4, 1, BACKPLATE_COLOR_4_INDEX, "Color %d"));
+	HUDColorLines.push_back(new Integer("Gray",		9, 9, 9, 0, BACKPLATE_COLOR_C_INDEX, "Color %d")); // Note: Cannot be changed, on purpose.
+	HUDColorLines.push_back(new Integer("Clear",	0, 0, 0, 0, BACKPLATE_COLOR_T_INDEX, "Color %d")); // Note: Cannot be changed, on purpose.
+	Page HUDColorsPage("HUD Colors", HUDColorLines);
+	if ((CONFIG_BACKPLATE_COLOR_MODE > 0) && (CONFIG_BACKPLATE_COLOR_MODE < backplateColorConstants::pSCL__COUNT))
+	{
+		MainLines.push_back(&HUDColorsPage.CalledFromLine);
+	}
+
 
 #if BUILD_TYPE == PROJECT_PLUS
 	MainLines.push_back(new Toggle("Crowd Cheers", false, CROWD_CHEER_TOGGLE_INDEX));
@@ -1004,13 +987,10 @@ void CodeMenu()
 
 	Page Main("Main", MainLines);
 	
-
 	//Unclepunch fps code
-	vector<unsigned int> x = { 3254926684, 3, 2288895028, 946012161, 2557330484, 2283733000, 1610612736, 0, 3254926716, 6, 2288895029, 946012161, 2557330485, 738394172, 1098907672, 2288895028, 2959983670, 945815552, 2557330484, 2557330485, 2147549204, 0 };
-
-	for(auto a: x) {
-		WriteIntToFile(a);
-	}
+	CodeRaw("[CM: Code Menu] FPS Code [UnclePunch]", "", {
+		3254926684, 3, 2288895028, 946012161, 2557330484, 2283733000, 1610612736, 0, 3254926716, 6, 2288895029, 946012161, 2557330485, 738394172, 1098907672, 2288895028, 2959983670, 945815552, 2557330484, 2557330485, 2147549204, 0
+		});
 
 	/*
 	Causes target smash to load lvl 1.  Fixed by Duke in seperate code
@@ -1131,7 +1111,7 @@ void printMenuSetters() {
 }
 
 void stopAnouncer() {
-	ASMStart(0x809580b4);
+	ASMStart(0x809580b4, "[CM: Code Menu] Stop Announcer");
 	//SaveRegisters();
 	
 	int reg1 = 4;
@@ -1150,7 +1130,7 @@ void endlessFriendlies() {
 
 	//r3 + 0x5D is flag
 	//r3 + 0x28 ^ 0x20 is port num (0 based)
-	ASMStart(0x809489ec);
+	ASMStart(0x809489ec, "[CM: Code Menu] Endless Friendlies");
 	SaveRegisters();
 
 	int reg1 = 31;
@@ -1237,7 +1217,7 @@ void ActualCodes()
 	if(ALT_STAGE_BEHAVIOR_INDEX != -1) {
 		//ASMStart(0x8094a168);
 #if BUILD_TYPE == PROJECT_PLUS
-		ASMStart(0x8010f990);
+		ASMStart(0x8010f990, "[CM: Code Menu] Alt Stage Behavior");
 #else
 		ASMStart(0x8094bf60);
 #endif
@@ -1313,7 +1293,7 @@ void ActualCodes()
 	}
 
 	if (CROWD_CHEER_TOGGLE_INDEX != -1) {
-		ASMStart(0x8081AD54);
+		ASMStart(0x8081AD54, "[CM: Code Menu] Crowd Cheer Toggle");
 		SaveRegisters();
 
 		int reg1 = 31;
@@ -1330,7 +1310,7 @@ void ActualCodes()
 	}
 
 	if (STALING_TOGGLE_INDEX != -1) {
-		ASMStart(0x808e00a4);
+		ASMStart(0x808e00a4, "[CM: Code Menu] Staling Toggle");
 		
 		LoadWordToReg(6, STALING_TOGGLE_INDEX + Line::VALUE);
 		If(6, EQUAL_I, 1); {
@@ -1551,19 +1531,27 @@ void CreateMenu(Page MainPage)
 
 	// Dash Attack Item Grab Setting
 	AddValueToByteArray(DASH_ATTACK_ITEM_GRAB_INDEX, Header);
-
-	//Stagelist Looter
-	AddValueToByteArray(STAGELIST_INDEX, Header);
-
-	//ASL Stage
-	AddValueToByteArray(ASL_STAGE_INDEX, Header);
-
+	
 	// Tripping Toggle
 	AddValueToByteArray(TRIP_TOGGLE_INDEX, Header);
 	// Tripping Rate Multiplier
 	AddValueToByteArray(TRIP_RATE_MULTIPLIER_INDEX, Header);
 	// Tripping Cooldown Toggle
 	AddValueToByteArray(TRIP_INTERVAL_INDEX, Header);
+
+	// Backplate Settings
+	AddValueToByteArray(BACKPLATE_COLOR_1_INDEX, Header);
+	AddValueToByteArray(BACKPLATE_COLOR_2_INDEX, Header);
+	AddValueToByteArray(BACKPLATE_COLOR_3_INDEX, Header);
+	AddValueToByteArray(BACKPLATE_COLOR_4_INDEX, Header);
+	AddValueToByteArray(BACKPLATE_COLOR_C_INDEX, Header);
+	AddValueToByteArray(BACKPLATE_COLOR_T_INDEX, Header);
+	//BACKPLATE_COLOR_TEAM_BATTLE_STORE_LOC
+	// Used to store some temp values related to the color changer!
+	// First byte is an offset used to lbzx to either VALUE or DEFAULT quickly (init to VALUE).
+	AddValueToByteArray(Line::VALUE << 0x18, Header);
+
+	
 	
 	//draw settings buffer
 	vector<u32> DSB(0x200 / 4, 0);
@@ -1579,6 +1567,12 @@ void CreateMenu(Page MainPage)
 		AddValueToByteArray(x, Header);
 	}
 
+	// Reserve Space for Hook VTable
+	if (HOOK_VTABLE.table_size() > 0)
+	{
+		Header.resize(Header.size() + HOOK_VTABLE.table_size(), 0);
+	}
+
 	if (START_OF_CODE_MENU - START_OF_CODE_MENU_HEADER != Header.size()) {
 		cout << "Messed up header\n";
 		exit(-1);
@@ -1592,7 +1586,7 @@ void CreateMenu(Page MainPage)
 }
 
 void constantOverride() {
-	ASMStart(0x80023d60);
+	ASMStart(0x80023d60, "[CM: Code Menu] Constant Overrides");
 
 	int reg1 = 4;
 	int reg2 = 5;
@@ -1608,7 +1602,7 @@ void constantOverride() {
 
 void ControlCodeMenu()
 {
-	ASMStart(0x80029574);
+	ASMStart(0x80029574, "[CM: Code Menu] Control Code Menu");
 	vector<int> FPRegs(14);
 	iota(FPRegs.begin(), FPRegs.end(), 0);
 	SaveRegisters(FPRegs);
@@ -1691,19 +1685,17 @@ void ControlCodeMenu()
 	int ActionReg = 14;
 
 	int NotLoaded = GetNextLabel();
-#if BUILD_TYPE == PROJECT_PLUS
-	LoadHalfToReg(Reg1, MENU_TITLE_CHECK_LOCATION + 7 + Line::COMMENT_LINE_TEXT_START);
-	If(Reg1, NOT_EQUAL_I_L, 0x6D69); //mi
-	{
-		JumpToLabel(NotLoaded);
-	}EndIf();
-#else
-	LoadHalfToReg(Reg1, MENU_TITLE_CHECK_LOCATION + 7 + Line::COMMENT_LINE_TEXT_START);
-	If(Reg1, NOT_EQUAL_I_L, 0x5445); //TE
-	{
-		JumpToLabel(NotLoaded);
-	}EndIf();
-#endif
+
+	// Rewritten check for whether or not menu is loaded!
+	// Load the main page pointer from just past the Menu Header Loc into Reg4 (this should be START_OF_CODE_MENU).
+	ADDIS(Reg1, 0, START_OF_CODE_MENU_HEADER >> 0x10);
+	LWZ(Reg4, Reg1, (START_OF_CODE_MENU_HEADER & 0xFFFF) + 4);
+	// Add the bottom half of START_OF_CODE_MENU to Reg1, so Reg1 should *also* now be START_OF_CODE_MENU.
+	ADDI(Reg1, Reg1, START_OF_CODE_MENU & 0xFFFF);
+	// Compare the two as unsigned integers.
+	CMPL(Reg1, Reg4, EQUAL_L);
+	// And if the two aren't equal, then we know the menu isn't loaded, skip to notLoaded tag!
+	JumpToLabel(NotLoaded, bCACB_NOT_EQUAL);
 
 	LoadWordToReg(Reg4, HUD_DISPLAY_INDEX + Line::VALUE);
 	If(Reg4, EQUAL_I, 0);
@@ -2780,7 +2772,7 @@ void printFPS() {
 
 void PrintCodeMenu()
 {
-	ASMStart(0x80017928);
+	ASMStart(0x80017928, "[CM: Code Menu] Print Code Menu");
 	vector<int> FPRegs(14);
 	iota(FPRegs.begin(), FPRegs.end(), 0);
 	SaveRegisters(FPRegs);
@@ -2853,7 +2845,7 @@ void PrimeCodeMenu()
 {
 	GeckoIf(0x8119969c, EQUAL, 0x9421fff0);
 	//r3 + 0x40 has location
-	ASMStart(0x8119969c);
+	ASMStart(0x8119969c, "[CM: Code Menu] Prime Code Menu");
 	SaveRegisters();
 
 	int Reg1 = 31;

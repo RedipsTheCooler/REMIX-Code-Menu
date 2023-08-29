@@ -6,10 +6,10 @@
 	<menuProperties>
 		<!--Specifies what folder on the SD Card the menu will expect to be in. Must be 8 characters long!-->
 		<!--Leave this blank to use the default folder.-->
-		<buildBaseFolder name="P+EX/./." />
+		<buildBaseFolder name="ex_remix" />
 		<!--Specify a replacement for the text that usually sits at the top of the menu.-->
 		<!--Leave this blank to leave the original title text in place.-->
-		<menuTitle text="Project+Ex Code Menu" />
+		<menuTitle text="Project REX Code Menu" />
 		<!--Specify additional comment text to add to the top of the menu!-->
 		<!--Note: By default, comments specified here are included beneath the usual comments outlining the menu's controls.-->
 		<!--To delete those comments on the controls, set the "deleteControlsComments" argument to "true"!-->
@@ -28,6 +28,123 @@
 		<!--
 		<character name="YOUR_NAME_HERE" slotID="SLOT_ID_HERE"/>
 		-->
+		<character name="Lyn" slotID="0x34" />
+		<character name="Dr. Mario" slotID="0x36" />
+		<character name="Mega Man X" slotID="0x37" />
+		<character name="Isaac" slotID="0x3A" />
+		<character name="Young Link" slotID="0x3F" />
+		<character name="Pichu" slotID="0x41" />
+		<character name="Metal Sonic" slotID="0x42" />
+		<character name="Bomberman" slotID="0x43" />
+		<character name="Big Boss" slotID="0x44" />
+		<character name="Ken" slotID="0x45" />
+		<character name="Phantom Ganon" slotID="0x46" />
+		<character name="Blood Falcon" slotID="0x47" />
+		<character name="Lucina" slotID="0x4B" />
+		<character name="Dr. Luigi" slotID="0x4C" />
+		<character name="Shadow" slotID="0x4D" />
+		<character name="Nu" slotID="0x4E" />
+		<character name="Cloud" slotID="0x4F" />
+		<character name="Dark Pit" slotID="0x50" />
+		<character name="Sukapon" slotID="0x51" />
+		<character name="Ryu" slotID="0x52" />
+		<character name="Ninten" slotID="0x53" />
+		<character name="Dry Bowser" slotID="0x54" />
+		<character name="Geno" slotID="0x55" />
+		<character name="Liz" slotID="0x56" />
+		<character name="Navarre" slotID="0x57" />
+		<character name="Alph" slotID="0x58" />
+		<character name="Chrom" slotID="0x59" />
+		<character name="Shulk" slotID="0x5A" />
+		<character name="Yu" slotID="0x5B" />
+		<character name="Squall" slotID="0x5C" />
+		<character name="Toon Zelda" slotID="0x5D" />
+		<character name="Daisy" slotID="0x5E" />
+		<character name="Knuckle Joe" slotID="0x5F" />
+		<character name="Louie" slotID="0x60" />
+		<character name="Corrin(F)" slotID="0x61" />
+		<character name="Sephiroth" slotID="0x62" />
+		<character name="Little Mac" slotID="0x63" />
+		<character name="PACMAN" slotID="0x64" />
+		<character name="Toad" slotID="0x65" />
+		<character name="Blaziken" slotID="0x66" />
+		<character name="Zero" slotID="0x67" />
+		<character name="Black Knight" slotID="0x68" />
+		<character name="Masked Man" slotID="0x69" />
+		<character name="Robin(M)" slotID="0x6E" />
+		<character name="Sans" slotID="0x6F" />
+		<character name="Isabelle" slotID="0x70" />
+		<character name="Palutena" slotID="0x71" />
+		<character name="Zeraora" slotID="0x72" />
+		<character name="Tails" slotID="0x73" />
+		<character name="Bandana Dee" slotID="0x74" />
+		<character name="Sub-Zero" slotID="0x75" />
+		<character name="Sandbag" slotID="0x76" />
+		<character name="Simon" slotID="0x77" />
+		<character name="Richter" slotID="0x78" />
+		<character name="Black Shadow" slotID="0x79" />
+		<character name="Metal Face" slotID="0x7A" />
+		<character name="Terry" slotID="0x7B" />
+		<character name="Fierce Deity" slotID="0x7C" />
+		<character name="Joker" slotID="0x7D" />
+		<character name="VectorMan" slotID="0x7E" />
+		<character name="W.F. Trainer" slotID="0x7F" />
+		<character name="Zero Suit Samus(U)" slotID="0x80" />
+		<character name="Robin(F)" slotID="0x81" />
+		<character name="Corrin(M)" slotID="0x82" />
+		<character name="Lucina(U)" slotID="0x84" />
+		<character name="Deathborn" slotID="0x85" />
+		<character name="Hero" slotID="0x86" />
+		<character name="Pikachu Libre" slotID="0x87" />
+		<character name="Wolf(U)" slotID="0x88" />
+		<character name="Mythra" slotID="0x89" />
+		<character name="Super Sonic" slotID="0x8A" />
+		<character name="Galacta Knight" slotID="0x8D" />
+		<character name="Pyra" slotID="0x8E" />
+		<character name="Banjo" slotID="0x91" />
+		<character name="Incineroar" slotID="0x92" />
+		<character name="Mega Charizard X" slotID="0x94" />
+		<character name="Roy(U)" slotID="0x95" />
+		<character name="Queen" slotID="0x96" />
+		<character name="Zack" slotID="0x97" />
+		<character name="Sylux" slotID="0x98" />
+		<character name="Giga Dry Bowser" slotID="0x99" />
+		<character name="Bayonetta" slotID="0x9A" />
+		<character name="Brawl M.K." slotID="0x9B" />
+		<character name="Big Puff" slotID="0x9C" />
+		<character name="Silver" slotID="0x9D" />
+		<character name="Mega Mewtwo Y" slotID="0x9F" />
+		<character name="Metal Mario" slotID="0xA1" />
+		<character name="Sora" slotID="0xA2" />
+		<character name="Mega Lucario" slotID="0xA3" />
+		<character name="Ganondorf(S)" slotID="0xA4" />
+		<character name="Suitless Samus" slotID="0xA5" />
+		<character name="Giant D.K." slotID="0xA6" />
+		<character name="Falco(U)" slotID="0xA7" />
+		<character name="Lucas(U)" slotID="0xA8" />
+		<character name="W.F. Trainer(M)" slotID="0xA9" />
+		<character name="K. Rool" slotID="0xAB" />
+		<character name="Alucard" slotID="0xAC" />
+		<character name="Shadow Mario" slotID="0xAD" />
+		<character name="Byleth(M)" slotID="0xAE" />
+		<character name="Byleth(F)" slotID="0xAF" />
+		<character name="Rock" slotID="0xB0" />
+		<character name="Villager" slotID="0xB1" />
+		<character name="Shadow Dedede" slotID="0xB2" />
+		<character name="P.G. Peach" slotID="0xB3" />
+		<character name="Giga Mac" slotID="0xB5" />
+		<character name="Steve" slotID="0xB6" />
+		<character name="Demise" slotID="0xB7" />
+		<character name="Greninja" slotID="0xB8" />
+		<character name="Ashley" slotID="0xB9" />
+		<character name="Kazuya" slotID="0xBB" />
+		<character name="Rosalina" slotID="0xBC" />
+		<character name="Super Shadow" slotID="0xBD" />
+		<character name="Chun-Li" slotID="0xBE" />
+		<character name="Master Chief" slotID="0xBF" />
+		<character name="Dark Samus(U)" slotID="0xC4" />
+		<character name="Spider-Man" slotID="0xC5" />
+		<character name="Masked Dedede" slotID="0xE1" />
 	</characterList>
 	
 	<codeSettings>
@@ -37,6 +154,9 @@
 			<!--
 			<roster name="YOUR_NAME_HERE" filename="FILENAME_HERE"/>
 			-->
+			<roster name="EX Only" filename="CSS_EXOnly.bx"/>
+			<roster name="L-Loads Only" filename="CSS_LLoad.bx"/>
+			<roster name="vP+" filename="CSS_PPlus.bx"/>
 		</rosterChanger>
 		
 		<!--To declare new themes, add new entries into this block!-->
